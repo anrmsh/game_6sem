@@ -12,8 +12,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -125,7 +123,16 @@ private fun WordLevelMenu(
     onStart: (Int) -> Unit
 ) {
     var selectedLevel by remember { mutableStateOf<WordLevelConfig?>(null) }
+    var pendingStartLevelId by remember { mutableIntStateOf(0) }
     var notice by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(pendingStartLevelId) {
+        if (pendingStartLevelId > 0) {
+            delay(120)
+            onStart(pendingStartLevelId)
+            pendingStartLevelId = 0
+        }
+    }
 
     LaunchedEffect(notice) {
         if (notice != null) {
@@ -214,8 +221,8 @@ private fun WordLevelMenu(
             },
             confirmButton = {
                 Button(onClick = {
+                    pendingStartLevelId = level.id
                     selectedLevel = null
-                    onStart(level.id)
                 }) { Text("ИГРАТЬ") }
             },
             dismissButton = {
@@ -567,7 +574,6 @@ private fun WordLevelGame(
 }
 
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
 private fun WordTemplates(
     level: WordLevelConfig,
     found: List<String>,
@@ -577,42 +583,62 @@ private fun WordTemplates(
     GlassCard {
         level.words.sortedWith(compareBy<String> { it.length }.thenBy { it }).groupBy { it.length }.forEach { (length, words) ->
             Text("$length букв", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                words.forEach { word ->
-                    val upper = word.uppercase()
-                    val isFound = found.contains(upper)
-                    val isHighlighted = highlightWord == upper
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isHighlighted) Color(0xFFFFE28A) else Color.Transparent)
-                            .padding(2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        upper.forEachIndexed { index, letter ->
-                            val hinted = hintLetters[upper]?.contains(index) == true
-                            Box(
-                                modifier = Modifier
-                                    .size(25.dp)
-                                    .clip(RoundedCornerShape(5.dp))
-                                    .background(if (isFound) Color(0xFF7E8FF2) else Color.White)
-                                    .border(1.dp, Color(0xFFC1CEE0), RoundedCornerShape(5.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (isFound || hinted) letter.toString() else "",
-                                    color = if (isFound) Color.White else Color(0xFF243B5A),
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                val wordsPerRow = when {
+                    length <= 3 -> 5
+                    length <= 5 -> 4
+                    else -> 3
+                }
+                words.chunked(wordsPerRow).forEach { rowWords ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        rowWords.forEach { word ->
+                            WordTemplateTile(
+                                word = word,
+                                found = found,
+                                hintLetters = hintLetters,
+                                highlightWord = highlightWord
+                            )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WordTemplateTile(
+    word: String,
+    found: List<String>,
+    hintLetters: Map<String, Set<Int>>,
+    highlightWord: String?
+) {
+    val upper = word.uppercase()
+    val isFound = found.contains(upper)
+    val isHighlighted = highlightWord == upper
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isHighlighted) Color(0xFFFFE28A) else Color.Transparent)
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        upper.forEachIndexed { index, letter ->
+            val hinted = hintLetters[upper]?.contains(index) == true
+            Box(
+                modifier = Modifier
+                    .size(25.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(if (isFound) Color(0xFF7E8FF2) else Color.White)
+                    .border(1.dp, Color(0xFFC1CEE0), RoundedCornerShape(5.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isFound || hinted) letter.toString() else "",
+                    color = if (isFound) Color.White else Color(0xFF243B5A),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
