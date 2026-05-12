@@ -59,6 +59,7 @@ class FileGameStorage(private val context: Context) {
         return try {
             val json = JSONObject(text)
             PlayerProgress(
+                playerName = json.optString("playerName", "Игрок").ifBlank { "Игрок" },
                 wordLevel = json.optInt("wordLevel", 1),
                 mathLevel = json.optInt("mathLevel", 1),
                 detectiveCase = json.optInt("detectiveCase", 1),
@@ -74,6 +75,7 @@ class FileGameStorage(private val context: Context) {
 
     fun writeProgress(progress: PlayerProgress) {
         val json = JSONObject().apply {
+            put("playerName", progress.playerName)
             put("wordLevel", progress.wordLevel)
             put("mathLevel", progress.mathLevel)
             put("detectiveCase", progress.detectiveCase)
@@ -91,6 +93,16 @@ class FileGameStorage(private val context: Context) {
             })
         }
         writeText(progressFile, json.toString())
+    }
+
+    fun resetProgressAndRating(keepPlayerName: String) {
+        writeText(ratingsFile, JSONObject().apply {
+            put("word", 0)
+            put("math", 0)
+            put("detective", 0)
+            put("daily", 0)
+        }.toString())
+        writeProgress(PlayerProgress(playerName = keepPlayerName.ifBlank { "Игрок" }))
     }
 
     private fun readWordFound(json: JSONObject?): Map<Int, List<String>> {

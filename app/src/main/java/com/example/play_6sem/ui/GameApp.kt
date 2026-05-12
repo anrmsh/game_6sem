@@ -31,6 +31,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +71,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class AppScreen {
-    SPLASH, MENU, WORD, MATH, DETECTIVE, DAILY
+    SPLASH, MENU, PROFILE, WORD, MATH, DETECTIVE, DAILY
 }
 
 private enum class NoticeType { ERROR, SUCCESS }
@@ -111,12 +113,42 @@ fun GameApp() {
             AppScreen.MENU -> MainMenuScreen(
                 rating = rating,
                 progress = progress,
+                onProfile = { screen = AppScreen.PROFILE },
                 onOpen = { module ->
                     screen = when (module) {
                         GameModule.WORD -> AppScreen.WORD
                         GameModule.MATH -> AppScreen.MATH
                         GameModule.DETECTIVE -> AppScreen.DETECTIVE
                         GameModule.DAILY -> AppScreen.DAILY
+                    }
+                }
+            )
+
+            AppScreen.PROFILE -> ProfileScreen(
+                rating = rating,
+                progress = progress,
+                onBack = {
+                    rating = storage.readRating()
+                    progress = storage.readProgress()
+                    screen = AppScreen.MENU
+                },
+                onNameSaved = { newName ->
+                    runCatching {
+                        storage.writeProgress(storage.readProgress().copy(playerName = newName.ifBlank { "Игрок" }))
+                        progress = storage.readProgress()
+                        popNotice("Имя сохранено", NoticeType.SUCCESS)
+                    }.onFailure {
+                        popNotice("Не удалось сохранить имя", NoticeType.ERROR)
+                    }
+                },
+                onReset = {
+                    runCatching {
+                        storage.resetProgressAndRating(progress.playerName)
+                        rating = storage.readRating()
+                        progress = storage.readProgress()
+                        popNotice("Прогресс сброшен", NoticeType.SUCCESS)
+                    }.onFailure {
+                        popNotice("Не удалось сбросить прогресс", NoticeType.ERROR)
                     }
                 }
             )
@@ -307,6 +339,7 @@ private fun SplashScreen(onDone: () -> Unit) {
 private fun MainMenuScreen(
     rating: AppRating,
     progress: PlayerProgress,
+    onProfile: () -> Unit,
     onOpen: (GameModule) -> Unit
 ) {
     GradientBackground {
@@ -316,6 +349,21 @@ private fun MainMenuScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.padding(padding)
             ) {
+                item {
+                    GlassCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(progress.playerName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                                Text("Профиль игрока")
+                            }
+                            Button(onClick = onProfile) { Text("Профиль") }
+                        }
+                    }
+                }
                 item {
                     GlassCard {
                         Text("Общий рейтинг: ${rating.totalPoints}", style = MaterialTheme.typography.headlineSmall)
@@ -332,6 +380,114 @@ private fun MainMenuScreen(
                 item { AnimatedVisibility(visible = true, enter = fadeIn() + slideInVertically()) { ModuleCard("Daily Challenge", "Ежедневный вызов и бонусы", onClick = { onOpen(GameModule.DAILY) }) } }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileScreen(
+    rating: AppRating,
+    progress: PlayerProgress,
+    onBack: () -> Unit,
+    onNameSaved: (String) -> Unit,
+    onReset: () -> Unit
+) {
+    var name by remember(progress.playerName) { mutableStateOf(progress.playerName) }
+    var editingName by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+
+    GradientBackground {
+        Scaffold(containerColor = Color.Transparent, modifier = Modifier.safeDrawingPadding()) { padding ->
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(padding)
+            ) {
+                item {
+                    GlassCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Профиль", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                                Text("Игровые данные и прогресс")
+                            }
+                            OutlinedButton(onClick = onBack) { Text("Назад") }
+                        }
+                    }
+                }
+                item {
+                    GlassCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Имя игрока", color = Color(0xFF53779E))
+                                if (editingName) {
+                                    OutlinedTextField(
+                                        value = name,
+                                        onValueChange = { name = it.take(24) },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                    )
+                                } else {
+                                    Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Button(onClick = {
+                                if (editingName) onNameSaved(name.trim())
+                                editingName = !editingName
+                            }) {
+                                Text(if (editingName) "Сохранить" else "✎")
+                            }
+                        }
+                    }
+                }
+                item {
+                    GlassCard {
+                        Text("Статистика", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Всего очков: ${rating.totalPoints}")
+                        Text("Словоман: ${rating.moduleRatings[0].points}")
+                        Text("Математика: ${rating.moduleRatings[1].points}")
+                        Text("Детектив: ${rating.moduleRatings[2].points}")
+                        Text("Daily: ${rating.moduleRatings[3].points}")
+                        Text("Уровни: W${progress.wordLevel} / M${progress.mathLevel} / D${progress.detectiveCase}")
+                    }
+                }
+                item {
+                    GlassCard {
+                        Text("Сброс прогресса", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Очки, открытые уровни, найденные слова и daily-статус будут очищены.")
+                        Button(
+                            onClick = { showResetDialog = true },
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                        ) {
+                            Text("Сбросить прогресс")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("Сбросить прогресс?") },
+            text = { Text("Все очки и прохождение уровней обнулятся. Игру можно будет проходить заново с первого уровня.") },
+            confirmButton = {
+                Button(onClick = {
+                    showResetDialog = false
+                    onReset()
+                }) { Text("Сбросить") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showResetDialog = false }) { Text("Отмена") }
+            }
+        )
     }
 }
 

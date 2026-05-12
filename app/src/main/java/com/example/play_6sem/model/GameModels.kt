@@ -18,6 +18,7 @@ data class AppRating(
 )
 
 data class PlayerProgress(
+    val playerName: String = "Игрок",
     val wordLevel: Int = 1,
     val mathLevel: Int = 1,
     val detectiveCase: Int = 1,
