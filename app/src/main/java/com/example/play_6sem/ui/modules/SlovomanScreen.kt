@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -385,13 +386,12 @@ private fun WordLevelGame(
                 item {
                     GlassCard {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Row(
+                            LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                level.mainWord.toList().withIndex().forEach { indexedLetter ->
-                                    val index = indexedLetter.index
-                                    val letter = indexedLetter.value
+                                items(level.mainWord.length) { index ->
+                                    val letter = level.mainWord[index]
                                     val selected = selectedIndexes.contains(index)
                                     OutlinedButton(
                                         enabled = !selected,
@@ -406,7 +406,7 @@ private fun WordLevelGame(
                                             disabledContainerColor = activeColor,
                                             disabledContentColor = Color.White
                                         ),
-                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        modifier = Modifier.width(46.dp).height(48.dp),
                                         contentPadding = PaddingValues(0.dp)
                                     ) {
                                         Text(letter.toString(), fontWeight = FontWeight.Bold)
